@@ -15,7 +15,7 @@ module load 2022
 module load Anaconda3/2022.05
 
 cd $HOME/Adversarial/
-conda create -n rl2 python=3.10
+conda create -n ir2 python=3.10
 
-source activate rl2
+source activate ir2
 srun pip install -r requirements.txt
