@@ -3,9 +3,7 @@ import random
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-tokenizer = AutoTokenizer.from_pretrained("amberoad/bert-multilingual-passage-reranking-msmarco")
-
-model = AutoModelForSequenceClassification.from_pretrained("amberoad/bert-multilingual-passage-reranking-msmarco")
+from sentence_transformers import CrossEncoder
 
 class MSMARCODataset(Dataset):
     def __init__(self, filepath):
@@ -20,41 +18,42 @@ class MSMARCODataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx]
-
-dataset = MSMARCODataset('top1000.dev')
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    
+    def get_docs_for_query_id(self, query_id):
+        return [item for item in self.data if item['query_id'] == query_id][:10]
+    
+def rank_documents(model, query, documents):
+    scores = model.predict([(query, doc['doc']) for doc in documents])
+    ranked_docs = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True)
+    return [doc[0]['doc_id'] for doc in ranked_docs]
 
 # there are 6668967 query-passage pairs. 
-# there are 6980 unique queries.
+# there are 6980 unique queries.    
+dataset = MSMARCODataset('top1000.dev')
+# dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+
+# Load the dataset
+dataset = MSMARCODataset('top1000.dev')
+
+# Load the model
+model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
 
 # Select a random query
-unique_queries = set([data['query_id'] for data in dataset.data])
-selected_query_id = random.choice(list(unique_queries))
+random_query = random.choice(dataset.data)
 
-# Retrieve all passages for the selected query
-selected_query_passages = [data for data in dataset.data if data['query_id'] == selected_query_id]
-selected_query_passages = selected_query_passages[:10]
+# Get all documents for this query
+docs_for_query = dataset.get_docs_for_query_id(random_query['query_id'])
 
-# Prepare data for the model
-inputs = tokenizer(
-    [selected_query_passages[0]['query']] * len(selected_query_passages), 
-    [p['doc'] for p in selected_query_passages], 
-    padding=True, 
-    truncation=True, 
-    return_tensors='pt',
-    max_length=512
-)
+# Rank the documents
+ranked_doc_ids = rank_documents(model, random_query['query'], docs_for_query)
 
-# Rank the passages using the model
-with torch.no_grad():
-    model.eval()
-    outputs = model(**inputs)
-    scores = outputs.logits[:,1]  # Assuming class 1 corresponds to relevant
+# Store the ranking in a dictionary
+ranking_dict = {random_query['query_id']: ranked_doc_ids}
 
-# Sort the passages based on scores
-ranked_passages = sorted(zip(selected_query_passages, scores), key=lambda x: x[1], reverse=True)
+# Print or return the ranking_dict
+print(ranking_dict)
 
-# Extract the ranked passages
-ranked_passages = [p[0] for p in ranked_passages]
 
-# Now you have your ranked passages for the selected query
+
+
+
