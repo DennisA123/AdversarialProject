@@ -5,7 +5,7 @@ from collections import defaultdict
 
 import torch
 import tqdm
-from pattern.text.en import singularize, pluralize
+from pattern3.text.en import singularize, pluralize
 from transformers import BertTokenizer
 
 from constant import BIRCH_DATA_DIR, BIRCH_MODEL_DIR, BIRCH_GAMMA, BIRCH_ALPHAS, BERT_LM_MODEL_DIR, BOS_TOKEN

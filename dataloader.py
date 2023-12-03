@@ -52,8 +52,3 @@ ranking_dict = {random_query['query_id']: ranked_doc_ids}
 
 # Print or return the ranking_dict
 print(ranking_dict)
-
-
-
-
-

@@ -1,4 +1,4 @@
-from transformers.models.bert.modeling_bert import BertEncoder, BertLayer, BertSelfAttention
+from transformers.models.bert.modeling_bert import BertEncoder, BertLayer, BertSelfAttention, BertAttention
 import torch.nn as nn
 import math
 import copy
@@ -69,6 +69,29 @@ class BertSelfAttentionPast(BertSelfAttention):
         context_layer = context_layer.view(*new_context_layer_shape)
 
         outputs = (context_layer, attention_probs, present) if self.output_attentions else (context_layer, present)
+        return outputs
+    
+class BertAttentionPast(BertAttention):
+    def __init__(self, config):
+        super().__init__(config)
+        self.self = BertSelfAttentionPast(config)
+
+    def forward(
+            self,
+            hidden_states,
+            attention_mask=None,
+            head_mask=None,
+            encoder_hidden_states=None,
+            encoder_attention_mask=None,
+            layer_past=None,
+            cache_query=False,
+    ):
+        self_outputs = self.self(
+            hidden_states, attention_mask, head_mask, encoder_hidden_states,
+            encoder_attention_mask, layer_past, cache_query
+        )
+        attention_output = self.output(self_outputs[0], hidden_states)
+        outputs = (attention_output,) + self_outputs[1:]
         return outputs
 
 class BertLayerPast(BertLayer):
