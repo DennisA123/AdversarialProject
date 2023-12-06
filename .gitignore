@@ -1,6 +1,7 @@
 # Ignore a specific file
 top1000.dev
 sandbox.py
+__pycache__
 
 # Ignore everything in a directory
 collision/
