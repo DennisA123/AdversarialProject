@@ -487,12 +487,9 @@ def give_scores_and_ranks(model, query, data, B=10, K=10):
     return bottom_b_dict, query_scores_dict, sorted_doctxt_topK, docid_doctxt_pairs
 
 def main():
-    # model = AutoModelForSequenceClassification.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
-    # what is the special token for this tokenizer?
-    # tokenizer = AutoTokenizer.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
-    model = BertForConcatNextSentencePrediction.from_pretrained('collision/collision/birch/models/msmarco_mb')
+    tokenizer = BertTokenizer.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
+    model = BertForConcatNextSentencePrediction.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
     model.to(device)
     print('DEVICE:', device)
     print('Loading data...')
