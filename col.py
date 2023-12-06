@@ -37,27 +37,44 @@ parser.add_argument("--num_beams", default=10, type=int, help="Number of beams")
 parser.add_argument("--num_filters", default=500, type=int, help="Number of num_filters words to be filtered")
 parser.add_argument('--nature', action='store_true', help='Nature collision')
 parser.add_argument('--regularize', action='store_true', help='Use regularize to decrease perplexity')
+parser.add_argument('--fp16', action='store_true', help='fp16')
 
 K = 10
 
 
 def pick_target_query_doc(experiment_name='msmarco_mb', data_name='core17',  min_rank=990):
+    '''
+    creates 2 dicts: 
+    one that stores, for each query, all 1000 document scores (in order). 
+    one that stores, for each query, the bottom 10 ranked documents and their scores.
+    '''
+    # QUERY ID (number), _, DOC ID (number), doc rank for that id (number, 1-1000, in order), score (number, in order), _
     run_file = os.path.join(BIRCH_DATA_DIR, 'runs', f'run.{experiment_name}_{data_name}.cv.abc')
+    # {q_id: {d_id: (rank, score), d_id: (rank, score)}, q_id: ...}
     target_q_doc = defaultdict(dict)
+    # {q_id: [-1, -1, -1, ...], q_id: [-1, -1, -1, ...]} 
     query_scores = defaultdict(lambda: [-1] * 1000)
+
     with open(run_file) as f:
         for line in f:
             qid, _, did, rank, score, _ = line.strip().split()
             rank = int(rank)
             score = float(score)
+            # only select doc if its rank is in the bottom 10
             if rank > min_rank:
                 target_q_doc[qid][did] = (rank, score)
+            # fill in with scores for each doc
             query_scores[qid][rank - 1] = score
     return target_q_doc, query_scores
 
 
 def load_best_bert_scores(experiment_name, data_name):
+    '''
+    for all queries (different from those used above), store top-K documents and their scores according to BERT
+    '''
+    # query id (int), _, doc_id (int), _, score (number), _
     pred_file = os.path.join(BIRCH_DATA_DIR, 'predictions', f'predict.{experiment_name}_{data_name}')
+    # {query_id: [(score, doc)]}
     query_score_dict = defaultdict(list)
     with open(pred_file) as bF:
         for line in bF:
@@ -67,36 +84,50 @@ def load_best_bert_scores(experiment_name, data_name):
 
     best_query_score = dict()
     for q in query_score_dict:
+        # list of K tuples with highest score
         query_scores = sorted(query_score_dict[q], key=lambda tup: -tup[0])[:K]
+        # list of these highest scores
         scores = [t[0] for t in query_scores]
+        # list of these highest-scoring doc ids
         dnos = [t[1] for t in query_scores]
         best_query_score[q] = (scores, dnos)
+    # {q_id: ([s1, s2], [d1, d2]), q_id: ([s3, s4], [d3, d4])}
     return best_query_score
 
 
 def prepare_data_and_scores(experiment_name='msmarco_mb', data_name='core17', min_rank=900):
+    # gather ranking data for a model on a dataset
+    # {q_id: {d_id: (rank, score), d_id: (rank, score)}, q_id: ...} for bottom 10 docs per query
+    # {q_id: [-1, -1, -1, ...], q_id: [-1, -1, -1, ...]} for all 1000 docs
     target_q_doc, query_scores = pick_target_query_doc(experiment_name, data_name, min_rank)
+    # gather scoring data according to BERT
+    # {q_id: ([s1, s2], [d1, d2]), q_id: ([s3, s4], [d3, d4])} for top-K docs per query
     best_query_score = load_best_bert_scores(experiment_name, data_name)
 
     collection_file = os.path.join(BIRCH_DATA_DIR, 'datasets', f'{data_name}_sents.csv')
+    # {q_id: {doc_id: BM25 score, doc_id: BM25 score}, ...} for docs if they are  in BIRCH bottom 10
     bm25_q_doc = defaultdict(dict)
+    # {q_id: query text, q_id: query text, ...} for all queries
     queries = dict()
+    # {q_id: [best BERT score, sentence, sentence, ...], ...} for sentences that are in the top-K according to BERT
     best_query_sent = defaultdict(list)
     with open(collection_file) as bF:
         for line in bF:
-            label, bm_score, q, s, qid, sid, qno, dno = line.strip().split('\t')
+            _, bm_score, q, s, qid, sid, qno, dno = line.strip().split('\t')
             bm_score = float(bm_score)
             did = sid.split('_')[0]
             queries[qid] = q
+            # if this doc is one of the bottom ranked by BIRCH for this query...
             if did in target_q_doc[qid]:
+                # ...store its BM25 score
                 bm25_q_doc[qid][did] = bm_score
-
+            # store  the highest BERT score of this query 
             if qid not in best_query_sent:
                 best_query_sent[qid].append(max(best_query_score[qno][0]))
-
+            # if this doc is among the top-K docs per query according to BERT, store this doc
             if dno in best_query_score[qno][1]:
                 best_query_sent[qid].append(s)
-
+    # return: bottom 10 docs + ranks + scores (BIRCH), all scores (BIRCH), bottom 10 docs + BM25 scores (BIRCH + GT), top BERT score + top sentences (BERT + GT), queries
     return target_q_doc, query_scores, bm25_q_doc, best_query_sent, queries
 
 
@@ -520,18 +551,20 @@ def gen_natural_collision(inputs_a, inputs_b, model, tokenizer, device, lm_model
 
 def main():
     device = torch.device(f'cuda:{args.gpu}')
+    # bottom 10 docs + ranks + scores (BIRCH), all scores (BIRCH), bottom 10 docs + BM25 scores (BIRCH + GT), top BERT score + top sentences (BERT + GT), queries
     target_q_doc, query_scores, bm25_q_doc, best_query_sent, queries = prepare_data_and_scores(args.model_name,
-                                                                                               args.data_name)
-    model_path = os.path.join(args.model_dir, args.model_name)
+                                                                                               args.data_name) # msmarco_mb, core17
+    model_path = os.path.join(args.model_dir, args.model_name) # birch/models, msmarco_mb
     tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
-    model = BertForConcatNextSentencePrediction.from_pretrained(model_path)
+    # BERT next sentence prediction model with BIRCH weights
+    model = BertForConcatNextSentencePrediction.from_pretrained(model_path) #.bin file with param values
     model.to(device)
     model.eval()
     for param in model.parameters():
         param.requires_grad = False
 
     log(f'Loading LM model from {args.lm_model_dir}')
-    lm_model = BertForLM.from_pretrained(args.lm_model_dir)
+    lm_model = BertForLM.from_pretrained(args.lm_model_dir) # wiki103/bert
     lm_model.to(device)
     lm_model.eval()
     for param in lm_model.parameters():
@@ -539,19 +572,27 @@ def main():
     # calculates perplexity; only for natural collisions!
     eval_lm_model = SentenceScorer(device)
 
-    for qid in queries:
-        query = queries[qid]
-        best = best_query_sent[qid]
-        best_score = best[0]
-        best_sent = ' '.join(best[1:])
+    if args.fp16:
+        from apex import amp
+        model, lm_model = amp.initialize([model, lm_model])
 
+    for qid in queries:
+        # query text
+        query = queries[qid]
+        # for this query... 
+        best = best_query_sent[qid]
+        # ...the best BERT score...
+        best_score = best[0]
+        # ...and the sentences if they are in the top-K according to BERT
+        best_sent = ' '.join(best[1:])
+        # [score]*1000
         old_scores = query_scores[qid][::-1]
         if args.nature:
             collision, new_score, collision_cands = gen_natural_collision(
                 query, best_sent, model, tokenizer, device, lm_model, best_score, eval_lm_model)
         else:
             collision, new_score, collision_cands = gen_aggressive_collision(
-                query, best_sent, model, tokenizer, device, best_score, lm_model)
+                query, best_sent, model, tokenizer, device, best_score, lm_model) # query text, top-K sentences (according to BERT) concated, _, _, _, best BERT score, _
 
         lm_perp = eval_lm_model.perplexity(collision)
         msg = f'Query={query}\n' \
@@ -564,10 +605,14 @@ def main():
 
         if args.verbose:
             log('---Rank shifts for less relevant documents---')
-            weighted_new_score = sum(BIRCH_ALPHAS) * new_score
+            weighted_new_score = sum(BIRCH_ALPHAS) * new_score # [1.0, 0.5, 0.1]
+            # go over bottom docs according to BIRCH
             for did in bm25_q_doc[qid]:
-                new_score = bm25_q_doc[qid][did] * BIRCH_GAMMA + weighted_new_score * (1 - BIRCH_GAMMA)
+                # the new score is a weighted combination of the current BM25 score and ...
+                new_score = bm25_q_doc[qid][did] * BIRCH_GAMMA + weighted_new_score * (1 - BIRCH_GAMMA) # [0.6, 0.4]
+                # old score and rank from BIRCH (for bottom 10 docs)
                 old_rank, old_score = target_q_doc[qid][did]
+                # old scores from BIRCH (for all docs) and new score --> new rank
                 new_rank = 1000 - bisect.bisect_left(old_scores, new_score)
                 log(f'Query id={qid}, Doc id={did}, '
                     f'old score={old_score:.2f}, new score={new_score:.2f}, old rank={old_rank}, new rank={new_rank}')
