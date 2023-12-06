@@ -487,11 +487,9 @@ def give_scores_and_ranks(model, query, data, B=10, K=10):
     return bottom_b_dict, query_scores_dict, sorted_doctxt_topK, docid_doctxt_pairs
 
 def main():
-    # model = AutoModelForSequenceClassification.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
-    # what is the special token for this tokenizer?
-    # tokenizer = AutoTokenizer.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
+    # model = BertForConcatNextSentencePrediction.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
     model = BertForConcatNextSentencePrediction.from_pretrained('collision/collision/birch/models/msmarco_mb')
     model.to(device)
     print('DEVICE:', device)
@@ -507,18 +505,16 @@ def main():
 
     MYMODEL = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
 
+    # for each query...
     for (query_id, query_text) in dataset.get_query_id_tuples():
         data_for_query = dataset.get_data_for_query_id(query_id)
         target_q_doc, query_scores, topk_sentences, docid_doctxt_dict = give_scores_and_ranks(MYMODEL, query_text, data_for_query, 10, 10)
         best_sent = ' '.join(topk_sentences[:]).rstrip()
-        # can be left out and set to None
-        best_score = None
 
-        # query text, top-K sentences (according to BERT) concated, _, _, _, best BERT score, _
         print('Generating collision of length', SEQ_LEN)
         collision, col_score, _  = gen_aggressive_collision(query_text, 
                                                             best_sent, 
-                                                            model, tokenizer, device, best_score, lm_model)
+                                                            model, tokenizer, device, None, lm_model)
         msg = f'Query={query_text}\n' \
               f'Best Collision={collision}\n' \
               f'Collision/query similarity score={col_score}\n'
@@ -528,11 +524,12 @@ def main():
             log('---Rank shifts for 10 least relevant documents---')
             # go over bottom docs according to Our BERT
             for did in target_q_doc[query_text].keys():
-                
+                # document
                 doctxt = docid_doctxt_dict[did]
+                # calculate its new score with the collision
                 new_score = MYMODEL.predict((query_text, doctxt + ' ' + collision))
 
-                # old rank and score from Our BERT (for bottom 10 docs)
+                # old rank and score from our model (for bottom 10 docs)
                 old_rank, old_score = target_q_doc[query_text][did]
                 new_rank = update_ranking(query_scores, query_text, old_score, new_score)
 
