@@ -1,0 +1,6 @@
+# Ignore a specific file
+top1000.dev
+sandbox.py
+
+# Ignore everything in a directory
+collision/
