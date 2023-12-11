@@ -1,0 +1,8 @@
+sentence-transformers
+numpy
+tqdm
+nltk
+homoglyphs
+transformers
+git+https://github.com/naver/splade.git
+pattern
