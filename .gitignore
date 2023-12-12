@@ -1,9 +1,9 @@
 # Ignore a specific file
-top1000.dev
-top1000_copy.dev
-sandbox.py
-__pycache__
-qrels.dev.tsv
 
 # Ignore everything in a directory
-collision/
+data/
+methods/__pycache__
+__pycache__
+models/bert/
+models/msmarco_mb/
+models/__pycache__

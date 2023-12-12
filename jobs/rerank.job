@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#SBATCH --job-name=rerank
+#SBATCH --output=slurm_output/%x_%A.out
+#also usable: --error
+#SBATCH --time=00:15:00
+#SBATCH --partition=gpu
+#SBATCH --nodes=1
+#SBATCH --gpus=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=18
+
+module purge
+module load 2022
+module load Anaconda3/2022.05
+source activate ir2
+
+# Some constants  (trailing spaces are not stripped automatically!)
+SOURCE_FOLDER=$HOME/AdversarialProject-1
+JOB_FILE_HOME=$SOURCE_FOLDER/jobs/rerank.job
+EXEC_FILE=$SOURCE_FOLDER/main.py
+DATA_DIR=$SOURCE_FOLDER/data
+
+METHOD=encoding_attack
+IRR_DOCS=10
+TOP_DOCS=10
+NR_WORDS=3
+PERTURBATION_TYPE='del'
+CHOICE_WORDS='important'
+
+
+srun python -u $EXEC_FILE \
+    --use-cuda \
+    --perturbation-method $METHOD \
+    --nr-irrelevant-docs $IRR_DOCS \
+    --nr-top-docs $TOP_DOCS \
+    --nr-words $NR_WORDS \
+    --perturbation-type $PERTURBATION_TYPE \
+    --choice-of-words $CHOICE_WORDS

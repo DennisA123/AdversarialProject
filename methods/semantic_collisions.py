@@ -1,29 +1,23 @@
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from sentence_transformers import CrossEncoder
 import torch
 import tqdm
 from nltk.corpus import stopwords
-from models.bert_models import BertForLM, BertForConcatNextSentencePrediction
 from pattern3.text.en import singularize, pluralize
 import sys
+from tqdm import trange
 from transformers import BertTokenizer, GPT2Tokenizer
-from dataloader import MSMARCO_REL
 import warnings
-
+# import and download stopwords
+import nltk
+nltk.download('stopwords')
 # Suppress FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
-# nltk.download('stopwords')
 
 COMMON_WORDS = ['the', 'of', 'and', 'a', 'to', 'in', 'is', 'you', 'that', 'it']
 STOPWORDS = set(stopwords.words('english'))
 NUM_FILTERS = 1000
-VERBOSE = True
-SEQ_LEN = 30
 TOPK = 50
 LR = 0.001
 STEMP = 1.0
-MAX_ITER = 20
 PERTURB_ITER = 30
 BETA = 0.0
 NUM_BEAMS = 5
@@ -68,35 +62,11 @@ def get_inputs_filter_ids(inputs, tokenizer):
     tokens = [w for w in tokenizer.tokenize(inputs) if w.isalpha() and w not in STOPWORDS]
     return tokenizer.convert_tokens_to_ids(tokens)
 
-def update_ranking(scores, old_score, new_score):
-    """
-    Update the ranking of a document after its score has changed.
-
-    :param scores_dict: Dictionary with query text as keys and lists of scores as values.
-    :param query: The query text corresponding to the scores list.
-    :param old_score: The old score of the document.
-    :param new_score: The new score of the document.
-    :return: The new ranking of the document.
-    """
-
-    try:
-        scores.remove(old_score)
-    except ValueError:
-        raise ValueError("Old score not found in the scores list")
-    
-    scores.append(new_score)
-    scores.sort(reverse=True)
-    new_ranking = scores.index(new_score) + 1
-
-    return new_ranking
-
-def find_filters(query, model, tokenizer, device, k=500):
+def find_filters(query, model, tokenizer, device, verbosity, k=500):
     '''
     returns list of k words in the tokenizer vocab that have the highest similarity score with the query
     '''
-    # 22351
     words = [w for w in tokenizer.vocab if w.isalpha() and w not in STOPWORDS]
-    # ? 
     inputs = tokenizer.batch_encode_plus([[query, w] for w in words], pad_to_max_length=True)
     all_input_ids = torch.tensor(inputs['input_ids'], device=device)
     all_token_type_ids = torch.tensor(inputs['token_type_ids'], device=device)
@@ -105,17 +75,15 @@ def find_filters(query, model, tokenizer, device, k=500):
     batch_size = 512
     n_batches = n // batch_size + 1
     all_scores = []
-    for i in tqdm.trange(n_batches, desc='Filtering vocab'):
+    iterator = trange(n_batches, desc='Filtering vocab') if verbosity else range(n_batches)
+    for i in iterator:
         # work with 512 tokenized query-word pairs per iteration
-        # all three shape: 512x6
         input_ids = all_input_ids[i * batch_size: (i + 1) * batch_size]
         token_type_ids = all_token_type_ids[i * batch_size: (i + 1) * batch_size]
         attention_masks = all_attention_masks[i * batch_size: (i + 1) * batch_size]
         outputs = model.forward(input_ids, attention_masks, token_type_ids)
-        # (512x1)
         scores = outputs[0][:, 1]
         all_scores.append(scores)
-    # (22351x1)
     all_scores = torch.cat(all_scores)
     _, top_indices = torch.topk(all_scores, k)
     # set of words that have the highest score
@@ -153,7 +121,6 @@ def create_constraints(seq_len, tokenizer, device, prob=False):
     if prob:
         masks = torch.zeros(seq_len, tokenizer.vocab_size, device=device)
     else:
-        # 16x30522
         masks = torch.zeros(seq_len, tokenizer.vocab_size, device=device) - 1e9
 
     for t in range(seq_len):
@@ -206,32 +173,25 @@ def valid_tokenization(input_ids, tokenizer: BertTokenizer, verbose=False):
     # make sure decoded string can be tokenized to the same tokens
     encoded_ids = tokenize_adversarial_example(input_ids, tokenizer)
     valid = len(input_ids) == len(encoded_ids) and all(i == j for i, j in zip(input_ids, encoded_ids))
-    if verbose and not valid:
-        log(f'Inputs: {tokenizer.convert_ids_to_tokens(input_ids)}')
-        log(f'Re-encoded: {tokenizer.convert_ids_to_tokens(encoded_ids)}')
     return valid, encoded_ids
 
-def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margin=None, lm_model=None):
-    # get word embedding layer parameters (30522x1024)
+def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, verbosity, col_len, max_iter, margin=None, lm_model=None):
+    # get word embedding layer parameters 
     word_embedding = model.get_input_embeddings().weight.detach()
 
     if lm_model is not None:
-        # same for LM embedding layer (30522x768)
+        # same for LM embedding layer 
         lm_word_embedding = lm_model.get_input_embeddings().weight.detach()
-    # 30522
     vocab_size = word_embedding.size(0)
-    # (30522x1)
     input_mask = torch.zeros(vocab_size, device=device)
     # list of k words from tokenizer vocab that are very similar to query
-    filters = find_filters(inputs_a, model, tokenizer, device, k=NUM_FILTERS)
+    filters = find_filters(inputs_a, model, tokenizer, device, verbosity, k=NUM_FILTERS)
     # list of ids for the words in the best matching sentences concat
     best_ids = get_inputs_filter_ids(inputs_b, tokenizer)
     # model vocab size --> change vals of words from best sentences concat
     input_mask[best_ids] = -1e9
     # list of enrichted query tokens (singular, plural, similar root)
     remove_tokens = add_single_plural(inputs_a, tokenizer)
-    # if VERBOSE:
-    #     log(','.join(remove_tokens))
     # list of token ids according to tokenizer of enriched query tokens
     remove_ids = tokenizer.convert_tokens_to_ids(remove_tokens)
     # add token id of .
@@ -248,8 +208,8 @@ def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margi
     # array of encoding numbers (query length + 2)
     input_ids = torch.tensor(input_ids, device=device).unsqueeze(0)
     # prevent output num_filters neighbor words
-    seq_len = SEQ_LEN
-    # shape: topK x len(input_ids) [the 0 does nothing]
+    seq_len = col_len
+    # shape: topK x len(input_ids)
     batch_input_ids = torch.cat([input_ids] * TOPK, 0)
     # mask of shape 16xvocab size
     stopwords_mask = create_constraints(seq_len, tokenizer, device)
@@ -258,14 +218,12 @@ def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margi
         # convert relaxed inputs to word embedding by softmax attention
         # seqlenxV filled with zeros --> devaluate special tokens and similar vocab words
         masked_x = x + input_mask + sub_mask
-        # p = \hat{c}_t in the paper; prob of each word in vocab
+        # prob of each word in vocab
         # STEMP --> 1 means sharper prob assignment
-        # (30 x 30522)
         p = torch.softmax(masked_x / STEMP, -1)
-        # p * word_embedding; each row is the same (30 x 1024)
+        # p * word_embedding; each row is the same
         x = torch.mm(p, word_embedding)
         # add embeddings for period and SEP
-        # (31 x 1024)
         x = torch.cat([x, word_embedding[tokenizer.sep_token_id].unsqueeze(0)])
         return p, x.unsqueeze(0)
 
@@ -275,7 +233,7 @@ def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margi
 
     # shape: topKx1 (filled with the id of the separator token)
     sep_tensor = torch.tensor([tokenizer.sep_token_id] * TOPK, device=device)
-    # shape: topK x 1024 [selects row #sep_token_id --> stacks topK times]
+    # shape: topK x ... [selects row #sep_token_id --> stacks topK times]
     batch_sep_embeds = word_embedding[sep_tensor].unsqueeze(1)
     # tensor([1])
     labels = torch.ones((1,), dtype=torch.long, device=device)
@@ -286,19 +244,16 @@ def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margi
     prev_score = -1e9
     collision_cands = []
 
-    # (30, 30522)
     var_size = (seq_len, vocab_size)
-    # 30x30522 filled with zeros; THIS IS WHAT GETS OPTIMIZED!
+    # filled with zeros; THIS IS WHAT GETS OPTIMIZED!
     z_i = torch.zeros(*var_size, requires_grad=True, device=device)
-    # 20
-    for it in tqdm.tqdm(range(MAX_ITER)):
-        # 0.001; optimizes z_i!
+    iterator2 = tqdm.tqdm(range(max_iter)) if verbosity else range(max_iter)
+    for it in iterator2:
+        # optimizes z_i!
         optimizer = torch.optim.Adam([z_i], lr=LR)
-        # 30
         for j in range(PERTURB_ITER):
             optimizer.zero_grad()
             # relaxation
-            # (30x30522) and (31x1024)
             p_inputs, inputs_embeds = relaxed_to_word_embs(z_i)
             # forward to BERT with relaxed inputs to calculate S(x,c)
             # loss: 1 number; cls_logits: 2 numbers
@@ -313,24 +268,23 @@ def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margi
 
             loss.backward()
             optimizer.step()
-            if VERBOSE and (j + 1) % 10 == 0:
+            if verbosity and (j + 1) % 10 == 0:
                 log(f'It{it}-{j + 1}, loss={loss.item()}')
 
         # detach to free GPU memory
-        # 30x30522
         z_i = z_i.detach()
 
-        # returns topk word indeces from vocab: (30x50)
+        # returns topk word indeces from vocab:
         _, topk_tokens = torch.topk(z_i, TOPK)
-        # transforms word logits to probs --> expands to top5 copies: (50x30x30522)
+        # transforms word logits to probs --> expands to top5 copies:
         probs_i = torch.softmax(z_i / STEMP, -1).unsqueeze(0).expand(TOPK, seq_len, vocab_size)
 
         output_so_far = None
         # beam search left to right
         for t in range(seq_len):
-            # select one row (corresponds to one collision word): (1x50)
+            # select one row (corresponds to one collision word):
             t_topk_tokens = topk_tokens[t]
-            # (50x30522): each row corresponds to a topk word, and for each row the 1
+            # each row corresponds to a topk word, and for each row the 1
             # indicates this word
             t_topk_onehot = torch.nn.functional.one_hot(t_topk_tokens, vocab_size).float()
             next_clf_scores = []
@@ -386,22 +340,16 @@ def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margi
                 output_so_far = torch.cat([output_so_far, beam_tokens.unsqueeze(1)], dim=-1)
         ## end of beam search ##
 
-        # output_so_far: (5[num beams]x30[collision length]) with very similar values, but not identical
-        # still the same as at the start
-        # batch_input_ids: (50x4)
-        # still the same as at the start
-        # sep_tensor: (50)
-
-        # (5x31): add separation token to each beam row
+        # add separation token to each beam row
         pad_output_so_far = torch.cat([output_so_far, sep_tensor[:NUM_BEAMS].unsqueeze(1)], 1)
-        # (5x4) [5 times the input] + (5x31) [5 times the collision] = (5x35)
+        # [5 times the input] +[5 times the collision] 
         concat_input_ids = torch.cat([batch_input_ids[:NUM_BEAMS], pad_output_so_far], 1)
-        # (5x4) [zeros] + (5x31) [ones] = (5x35): to distinguish the two sequences
+        # [zeros] + [ones] = to distinguish the two sequences
         token_type_ids = torch.cat([torch.zeros_like(batch_input_ids[:NUM_BEAMS]),
                                     torch.ones_like(pad_output_so_far)], 1)
-        # (5x2): for each beam collision and query, calculates the score
+        # for each beam collision and query, calculates the score
         clf_logits = model(input_ids=concat_input_ids, token_type_ids=token_type_ids)[0]
-        # (5x1): second column of clf_logits
+        # second column of clf_logits
         actual_clf_scores = clf_logits[:, 1]
         # indeces of scores in descending order
         sorter = torch.argsort(actual_clf_scores, -1, descending=True)
@@ -411,16 +359,16 @@ def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margi
         valid = False
         # if the collision is valid
         for idx in sorter:
-            # input: collision (row of 30 values)
+            # input: collision
             valid, _ = valid_tokenization(output_so_far[idx], tokenizer)
             if valid:
                 valid_idx = idx
                 break
 
         # re-initialize z_i
-        # best collision (1x30)
+        # best collision
         curr_best = output_so_far[valid_idx]
-        # one hot version of best collision (30 x 30522)
+        # one hot version of best collision
         next_z_i = torch.nn.functional.one_hot(curr_best, vocab_size).float()
         eps = 0.1
         # label smoothing of one hot representation --> z_i for next iteration
@@ -439,80 +387,3 @@ def gen_aggressive_collision(inputs_a, inputs_b, model, tokenizer, device, margi
         prev_score = curr_score
     # collision text, collision similarity score with query
     return best_collision, best_score, collision_cands
-
-def give_scores_and_ranks(model, query_id, dataset, B=10, K=10):
-
-    q_text = dataset.qid_qtxt[query_id]
-    doc_ids = dataset.qid_did[query_id]
-    list_dtxts = [dataset.did_dtxt[doc_id] for doc_id in doc_ids]
-    # Perform model prediction
-    scores = model.predict([(q_text, dtxt) for dtxt in list_dtxts])
-    # Pair each score with its corresponding doc_id
-    score_docid_pairs = list(zip(scores, doc_ids))
-
-    score_doctxt_pairs = list(zip(scores, list_dtxts))
-    sorted_doctxt_topK = [tup[1] for tup in sorted(score_doctxt_pairs, key=lambda x: x[0], reverse=True)[:K]]
-
-    # Sort the pairs by score in descending order to maintain original ranking
-    sorted_pairs = sorted(score_docid_pairs, key=lambda x: x[0], reverse=True)
-    query_scores = sorted(scores, reverse=True)
-    # Initialize bottom_k_dict
-    bottom_b_dict = {}
-    # Iterate through sorted_pairs and add only bottom K documents to bottom_k_dict
-    for rank, (score, doc_id) in enumerate(sorted_pairs, start=1):
-        if rank > len(sorted_pairs) - B:
-            bottom_b_dict[doc_id] = (rank, score)
-
-    # doc_id: (rank,score), [descending scores], [text, text, ...]
-    return bottom_b_dict, query_scores, sorted_doctxt_topK
-
-def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
-    model = BertForConcatNextSentencePrediction.from_pretrained('collision/collision/birch/models/msmarco_mb')
-    # tokenizer = BertTokenizer.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
-    # model = BertForConcatNextSentencePrediction.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
-    model.to(device)
-    print('DEVICE:', device)
-    print('Loading data...')
-    dataset = MSMARCO_REL('top1000_copy.dev')
-    model.eval()
-    for param in model.parameters():
-        param.requires_grad = False
-
-    lm_model = BertForLM.from_pretrained('collision/collision/wiki103/bert')
-    lm_model.to(device)
-    lm_model.eval()
-
-    MYMODEL = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
-
-    for q_id in dataset.qid_qtxt.keys():
-        targeted_docs, query_scores, topk_sentences = give_scores_and_ranks(MYMODEL, q_id, dataset, 10, 10)
-        best_sent = ' '.join(topk_sentences[:]).rstrip()
-
-        print('Generating collision of length', SEQ_LEN)
-        collision, col_score, _  = gen_aggressive_collision(dataset.qid_qtxt[q_id], 
-                                                            best_sent, 
-                                                            model, tokenizer, device, None, lm_model)
-        msg = f'Query={dataset.qid_qtxt[q_id]}\n' \
-              f'Best Collision={collision}\n' \
-              f'Collision/query similarity score={col_score}\n'
-        log(msg)
-
-        if VERBOSE:
-            log('---Rank shifts for 10 least relevant documents---')
-            # go over bottom docs according to our model
-            for did in targeted_docs.keys():
-                # calculate its new score with the collision
-                new_score = MYMODEL.predict((dataset.qid_qtxt[q_id], dataset.did_dtxt[did] + ' ' + collision))
-                # old rank and score from our model
-                old_rank, old_score = targeted_docs[did]
-                new_rank = update_ranking(query_scores, old_score, new_score)
-
-                log(f'Query id={q_id}, Doc id={did}, '
-                    f'old score={old_score:.2f}, new score={new_score:.2f}, old rank={old_rank}, new rank={new_rank}')
-                
-        # temporary: only do first query
-        break
-if __name__ == '__main__':
-    main()

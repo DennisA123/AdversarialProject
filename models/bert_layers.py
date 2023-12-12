@@ -1,7 +1,6 @@
 from transformers.models.bert.modeling_bert import BertEncoder, BertLayer, BertSelfAttention, BertAttention
 import torch.nn as nn
 import math
-import copy
 import torch
 
 class BertSelfAttentionPast(BertSelfAttention):
