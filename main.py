@@ -61,33 +61,16 @@ def give_scores_and_ranks(model, query_id, dataset, B, K):
 
     q_text = dataset.qid_qtxt[query_id]
     doc_ids = dataset.qid_did[query_id]
-    print('DOC_IDs that are from give_scores_and_ranks', doc_ids)
-    print('DOC_IDs that are from give_scores_and_ranks', len(doc_ids))
     list_dtxts = [dataset.did_dtxt[doc_id] for doc_id in doc_ids]
     # Perform model prediction
     scores = model.predict([(q_text, dtxt) for dtxt in list_dtxts])
-    print('Size of scores', len(scores))
     # Pair each score with its corresponding doc_id
     score_docid_pairs = list(zip(scores, doc_ids))
-    print('Size of score pairs', len(score_docid_pairs))
-
-    for item in score_docid_pairs:
-        if item[1] in ['3928996', '1901494', '7457306', '1508194', '4299161']:
-            print(item)
+    docid_score_pairs = list(zip(doc_ids, scores))
 
     # create sorted dictionary
-    # swap keys and values such that we have doc_id: score
-    complete_ranking_unswap = dict(sorted(score_docid_pairs, key=lambda x: x[0]))
-    print('Complete ranking unswap', len(complete_ranking_unswap))
-    complete_ranking = {v: k for k, v in complete_ranking_unswap.items()}
-    print('Complete ranking', len(complete_ranking))
+    complete_ranking = dict(sorted(docid_score_pairs, key=lambda x: x[0]))
 
-    print('---------------------------')
-    for item in doc_ids:
-        if item not in complete_ranking.keys():
-            print('THIS ITEM IS NOT IN COMPLETE RANKING')
-            print(item)
-    print('--------')
 
     score_doctxt_pairs = list(zip(scores, list_dtxts))
     sorted_doctxt_topK = [tup[1] for tup in sorted(score_doctxt_pairs, key=lambda x: x[0], reverse=True)[:K]]
@@ -124,7 +107,6 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
 
     for q_id in test_dct:
         complete_old_ranking, targeted_docs, query_scores, _ = give_scores_and_ranks(MYMODEL, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
-        print('COMPLETE OLD RANKING', complete_old_ranking)
 
         # dict of new_scores
         dct_new_scores = {}

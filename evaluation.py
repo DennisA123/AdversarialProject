@@ -42,25 +42,8 @@ def evaluation_ndcg(complete_ranking, query_id):
 
     # obtain relevance labels of query id
     relevance_labels = get_rel_labels(query_id)
-    print(relevance_labels)
-    # print('RELEVANCE LABELS IDs', list(relevance_labels.keys()))
-    # print('RANKING IDs', list(complete_ranking.keys()))
-
-    # print('---------------------------')
-    # for item in relevance_labels.keys():
-    #     if item not in complete_ranking.keys():
-    #         print('THIS ITEM IS NOT IN COMPLETE RANKING')
-    #         print(item)
-    # print('--------')
-    # for item in complete_ranking.keys():
-    #     if item not in relevance_labels.keys():
-    #         print('THIS ITEM IS NOT IN COMPLETE RANKING')
-    #         print(item)
-    # print('---------------------------')
 
     # sort the relevance labels such that it has same ordering as complete ranking
-    ranking = {k: v for k, v in complete_ranking.items() if k in relevance_labels}
-    relevance_labels = {k: v for k, v in relevance_labels.items() if k in ranking}
     sorted_relevance_labels = dict(sorted(relevance_labels.items(), key=lambda x: list(ranking.keys()).index(x[0])))
 
     assert sorted_relevance_labels.keys() == complete_ranking.keys(), "The doc_ids of ranking and relevance labels do not match."

@@ -130,7 +130,6 @@ def find_importance_scores(doc, query):
         d = {token: weight for token, weight in zip(col, weights)}
         
         sorted_d = {token: value for token, value in sorted(d.items(), key=lambda item: item[1], reverse=True)}
-        print(sorted_d)
         bow_rep = []
         for token, value in sorted_d.items():
             word = reverse_voc[token]
