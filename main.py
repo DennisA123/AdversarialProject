@@ -6,7 +6,7 @@ from sentence_transformers import CrossEncoder
 from itertools import islice
 
 # import from other files
-from dataloader import MSMARCO_REL
+from dataloader import MSMARCO_REL, RELEVANCE
 from models.bert_models import BertForLM, BertForConcatNextSentencePrediction
 from transformers import BertTokenizer
 from methods.semantic_collisions import gen_aggressive_collision
@@ -93,6 +93,8 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
         print('DEVICE:', device)
     dataset_path = os.path.join('data', 'top1000.dev')
     dataset = MSMARCO_REL(dataset_path)
+    rel_dataset_path = os.path.join('data', 'qrels.dev.tsv')
+    rel_data = RELEVANCE(rel_dataset_path)
 
     ranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
 
@@ -136,8 +138,8 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
                 print('Document with ID',did,'normalized shift:', shift)
 
         complete_new_ranking = obtain_new_ranking(complete_old_ranking, dct_new_scores) 
-        # ndcg_new = evaluation_ndcg(complete_new_ranking, q_id) 
-        # ndcg_old = evaluation_ndcg(complete_old_ranking, q_id)
+        # ndcg_new = evaluation_ndcg(complete_new_ranking, q_id, rel_data, dataset) 
+        # ndcg_old = evaluation_ndcg(complete_old_ranking, q_id, rel_data, dataset)
         # ndcg_scores_new.append(ndcg_new)   
         # ndcg_scores_old.append(ndcg_old)   
 
@@ -180,6 +182,9 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
         print('DEVICE:', device)
     dataset_path = os.path.join('data', 'top1000.dev')
     dataset = MSMARCO_REL(dataset_path)
+    rel_dataset_path = os.path.join('data', 'qrels.dev.tsv')
+    rel_data = RELEVANCE(rel_dataset_path)
+
     model.eval()
     for param in model.parameters():
         param.requires_grad = False
@@ -245,8 +250,8 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
                 print('Document with ID',did,'normalized shift:', shift)
         
         complete_new_ranking = obtain_new_ranking(complete_old_ranking, dct_new_scores) 
-        # ndcg_new = evaluation_ndcg(complete_new_ranking, q_id) 
-        # ndcg_old = evaluation_ndcg(complete_old_ranking, q_id)
+        # ndcg_new = evaluation_ndcg(complete_new_ranking, q_id, rel_data, dataset) 
+        # ndcg_old = evaluation_ndcg(complete_old_ranking, q_id, rel_data, dataset)
         # ndcg_scores_new.append(ndcg_new)   
         # ndcg_scores_old.append(ndcg_old)   
 

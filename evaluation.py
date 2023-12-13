@@ -2,15 +2,7 @@ import os
 from dataloader import MSMARCO_REL, RELEVANCE
 from sklearn.metrics import ndcg_score
 
-# load data
-# ? deze dataset wordt ook al opgeroepen bij de methodes zelf, kan dat niet vanaf daar worden meegenomen ipv opnieuw de data hier inladen?
-rel_dataset_path = os.path.join('data', 'qrels.dev.tsv')
-rel_data = RELEVANCE(rel_dataset_path)
-dataset_path = os.path.join('data', 'top1000.dev')
-dataset = MSMARCO_REL(dataset_path)
-
-
-def get_rel_labels(q_id):
+def get_rel_labels(q_id, rel_data, dataset):
     """
     Function that obtains the relevance labels given a query
 
@@ -32,7 +24,7 @@ def get_rel_labels(q_id):
             rel_labels[d_id] = 0
     return rel_labels
 
-def evaluation_ndcg(complete_ranking, query_id):
+def evaluation_ndcg(complete_ranking, query_id, rel_data, dataset):
     """
     Function that calculates the ndcg of a ranking
 
@@ -43,7 +35,7 @@ def evaluation_ndcg(complete_ranking, query_id):
     """
 
     # obtain relevance labels of query id
-    relevance_labels = get_rel_labels(query_id)
+    relevance_labels = get_rel_labels(query_id, rel_data, dataset)
 
     # sort the relevance labels such that it has same ordering as complete ranking
     sorted_relevance_labels = dict(sorted(relevance_labels.items(), key=lambda x: list(complete_ranking.keys()).index(x[0])))

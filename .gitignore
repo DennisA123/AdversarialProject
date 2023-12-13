@@ -8,3 +8,4 @@ models/bert/
 models/msmarco_mb/
 models/__pycache__
 results/
+jobs/
