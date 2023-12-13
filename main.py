@@ -2,6 +2,7 @@ import torch
 import os
 import tqdm
 import argparse
+import copy
 from sentence_transformers import CrossEncoder
 from itertools import islice
 
@@ -12,7 +13,7 @@ from transformers import BertTokenizer
 from methods.semantic_collisions import gen_aggressive_collision
 # ?
 # from methods.perturb_doc import perturb_doc
-from evaluation import evaluation_ndcg, average_ndcg, succes_rate, average_succes_rate, normalized_shift
+from evaluation import evaluation_ndcg, success_rate, normalized_shift
 
 def update_ranking(scores, old_score, new_score):
     """
@@ -48,11 +49,12 @@ def obtain_new_ranking(old_ranking, dct_new_scores):
     """
 
     # loop through new scores of all perturbed docs
+    new_ranking = copy.deepcopy(old_ranking)
     for item in dct_new_scores.items():
-        old_ranking[item[0]] = item[1]
+        new_ranking[item[0]] = item[1]
     
     # sort adapted dict with new scores to obtain new ranking
-    new_ranking = dict(sorted(old_ranking.items(), key=lambda item: item[1]))
+    new_ranking = dict(sorted(new_ranking.items(), key=lambda item: item[1], reverse=True))
 
     return new_ranking
 
@@ -68,7 +70,7 @@ def give_scores_and_ranks(model, query_id, dataset, B, K):
     docid_score_pairs = list(zip(doc_ids, scores))
 
     # create sorted dictionary
-    complete_ranking = dict(sorted(docid_score_pairs, key=lambda x: x[0]))
+    complete_ranking = dict(sorted(docid_score_pairs, key=lambda x: x[1], reverse=True))
 
 
     score_doctxt_pairs = list(zip(scores, list_dtxts))
@@ -101,11 +103,16 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
     # for storing evaluation values
     ndcg_scores_new = []
     ndcg_scores_old = []
-    succes_rates = []
 
+    total_shift = 0
+    total_succ_rate = 0
+    total_ndcg_new = 0
+    total_ndcg_old = 0
+    it = 0
+    it2 = 0
+    it3 = 0
     # ?
     test_dct = islice(dataset.qid_qtxt, 3)
-    shift_results = []
     for q_id in tqdm.tqdm(test_dct, desc='Going through queries'):
         complete_old_ranking, targeted_docs, query_scores, _ = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
 
@@ -132,28 +139,24 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
                     f'old score={old_score:.2f}, new score={new_score:.2f}, old rank={old_rank}, new rank={new_rank}')
 
             shift = normalized_shift(new_rank, old_rank, len(targeted_docs))
-            shift_results.append(shift)
+            total_shift += shift
+            it += 1
 
             if verbosity:
                 print('Document with ID',did,'normalized shift:', shift)
 
         complete_new_ranking = obtain_new_ranking(complete_old_ranking, dct_new_scores) 
-        # ndcg_new = evaluation_ndcg(complete_new_ranking, q_id, rel_data, dataset) 
-        # ndcg_old = evaluation_ndcg(complete_old_ranking, q_id, rel_data, dataset)
-        # ndcg_scores_new.append(ndcg_new)   
-        # ndcg_scores_old.append(ndcg_old)   
+        ndcg_old = evaluation_ndcg(complete_old_ranking, q_id, rel_data, dataset)
+        total_ndcg_old += ndcg_old
+        ndcg_new = evaluation_ndcg(complete_new_ranking, q_id, rel_data, dataset) 
+        total_ndcg_new += ndcg_new
+        it3 += 1  
 
         # evaluation: succes_rate
-        succ_rate = succes_rate(targeted_docs, complete_new_ranking, top_n=100)
-        succes_rates.append(succ_rate)   
-    
-    # average_ndcg_new = average_ndcg(ndcg_scores_new)
-    # average_ndcg_old = average_ndcg(ndcg_scores_old)
-    avg_succes_rate = average_succes_rate(succes_rates)
-    # print(f'The old average nDCG score wass {average_ndcg_old:.2f}')
-    # print(f'The new average nDCG score is {average_ndcg_new:.2f}')
-    # print(f'The difference in nDCG score is {average_ndcg_old - average_ndcg_new}')
-
+        succ_rate = success_rate(targeted_docs, complete_new_ranking, top_n=100)
+        total_succ_rate += succ_rate
+        it2 += 1 
+        
     # Define the directory and file path
     res_directory = './results'
     file_path = f'{res_directory}/results.txt'
@@ -162,21 +165,30 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
 
     # Write everything to 'results.txt'
     with open(file_path, 'w') as file:
-        # Write success rate on the first line, and the shift on second
+        # Write success rate on the first line, the shift on second, old NCDG on third, new NCDG on fourth, and difference on fifth
+        avg_succes_rate = total_succ_rate / it2 if it2 else 0
         file.write(f"{avg_succes_rate}\n")
-        avg_shift = sum(shift_results) / len(shift_results)
+        avg_shift = total_shift / it if it else 0
         file.write(f"{avg_shift}\n")
+        avg_ndcg_old = total_ndcg_old / it3 if it3 else 0
+        file.write(f"{avg_ndcg_old}\n")
+        avg_ndcg_new = total_ndcg_new / it3 if it3 else 0
+        file.write(f"{avg_ndcg_new}\n")
+        ndcg_diff = avg_ndcg_new - avg_ndcg_old
+        file.write(f"{ndcg_diff}\n")
 
-    print(f'Average success rate:" {avg_succes_rate}')
-    print(f'Average normalized shift:" {avg_shift}')
+    print(f'Average success rate: {avg_succes_rate}')
+    print(f'Average normalized shift: {avg_shift}')
+    print(f'Average nDCG before the attack: {avg_ndcg_old}')
+    print(f'Average nDCG after the attack: {avg_ndcg_new}')
+    print(f'Difference in nDCG: {ndcg_diff}')
 
 def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_iter):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
     collision_model_path = os.path.join('models', 'msmarco_mb')
     model = BertForConcatNextSentencePrediction.from_pretrained(collision_model_path)
-    # tokenizer = BertTokenizer.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
-    # model = BertForConcatNextSentencePrediction.from_pretrained('cross-encoder/ms-marco-MiniLM-L-12-v2')
+
     model.to(device)
     if verbosity:
         print('DEVICE:', device)
@@ -199,16 +211,19 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
     # for storing evaluation values
     ndcg_scores_new = []
     ndcg_scores_old = []
-    succes_rates = []
 
-    # for storing results in the text file
-    shift_results = []
+    total_shift = 0
+    total_succ_rate = 0
+    total_ndcg_new = 0
+    total_ndcg_old = 0
+    it = 0
+    it2 = 0
+    it3 = 0
     # ?
     test_dct = islice(dataset.qid_qtxt, 2)
     # for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
     for q_id in test_dct:
         complete_old_ranking, targeted_docs, query_scores, topk_sentences = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
-
         # dict of new_scores
         dct_new_scores = {}
 
@@ -244,29 +259,24 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
                     f'old score={old_score:.2f}, new score={new_score:.2f}, old rank={old_rank}, new rank={new_rank}')
                 
             shift = normalized_shift(new_rank, old_rank, len(targeted_docs))
-            shift_results.append(shift)
+            total_shift += shift
+            it += 1
 
             if verbosity:
                 print('Document with ID',did,'normalized shift:', shift)
         
         complete_new_ranking = obtain_new_ranking(complete_old_ranking, dct_new_scores) 
-        # ndcg_new = evaluation_ndcg(complete_new_ranking, q_id, rel_data, dataset) 
-        # ndcg_old = evaluation_ndcg(complete_old_ranking, q_id, rel_data, dataset)
-        # ndcg_scores_new.append(ndcg_new)   
-        # ndcg_scores_old.append(ndcg_old)   
+        ndcg_old = evaluation_ndcg(complete_old_ranking, q_id, rel_data, dataset)
+        total_ndcg_old += ndcg_old
+        ndcg_new = evaluation_ndcg(complete_new_ranking, q_id, rel_data, dataset) 
+        total_ndcg_new += ndcg_new
+        it3 += 1
 
         # evaluation: succes_rate
-        succ_rate = succes_rate(targeted_docs, complete_new_ranking, top_n=100)
-        succes_rates.append(succ_rate)   
+        succ_rate = success_rate(targeted_docs, complete_new_ranking, top_n=100)
+        total_succ_rate += succ_rate
+        it2 += 1
     
-    # average_ndcg_new = average_ndcg(ndcg_scores_new)
-    # average_ndcg_old = average_ndcg(ndcg_scores_old)
-    avg_succes_rate = average_succes_rate(succes_rates)
-    # print(f'The old average nDCG score wass {average_ndcg_old:.2f}')
-    # print(f'The new average nDCG score is {average_ndcg_new:.2f}')
-    # print(f'The difference in nDCG score is {average_ndcg_old - average_ndcg_new}')
-
-
     # Define the directory and file path
     res_directory = './results'
     file_path = f'{res_directory}/results.txt'
@@ -275,13 +285,23 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
 
     # Write everything to 'results.txt'
     with open(file_path, 'w') as file:
-        # Write success rate on the first line, and the shift on second
+        # Write success rate on the first line, the shift on second, old NCDG on third, new NCDG on fourth, and difference on fifth
+        avg_succes_rate = total_succ_rate / it2 if it2 else 0
         file.write(f"{avg_succes_rate}\n")
-        avg_shift = sum(shift_results) / len(shift_results)
+        avg_shift = total_shift / it if it else 0
         file.write(f"{avg_shift}\n")
+        avg_ndcg_old = total_ndcg_old / it3 if it3 else 0
+        file.write(f"{avg_ndcg_old}\n")
+        avg_ndcg_new = total_ndcg_new / it3 if it3 else 0
+        file.write(f"{avg_ndcg_new}\n")
+        ndcg_diff = avg_ndcg_new - avg_ndcg_old
+        file.write(f"{ndcg_diff}\n")
 
     print(f'Average success rate: {avg_succes_rate}')
     print(f'Average normalized shift: {avg_shift}')
+    print(f'Average nDCG before the attack: {avg_ndcg_old}')
+    print(f'Average nDCG after the attack: {avg_ndcg_new}')
+    print(f'Difference in nDCG: {ndcg_diff}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -1,5 +1,4 @@
-import os
-from dataloader import MSMARCO_REL, RELEVANCE
+import numpy as np
 from sklearn.metrics import ndcg_score
 
 def get_rel_labels(q_id, rel_data, dataset):
@@ -14,8 +13,6 @@ def get_rel_labels(q_id, rel_data, dataset):
     rel_labels = {}
 
     doc_ids = dataset.qid_did[q_id]
-    print('DOC_IDs that are from get_rel_labels', doc_ids)
-    print('DOC_IDs that are from get_rel_labels', len(doc_ids))
 
     for d_id in doc_ids:
         if (q_id, d_id) in rel_data.relevance:
@@ -43,13 +40,9 @@ def evaluation_ndcg(complete_ranking, query_id, rel_data, dataset):
     assert sorted_relevance_labels.keys() == complete_ranking.keys(), "The doc_ids of ranking and relevance labels do not match."
 
     # calculate ndcg score
-    ndcg = ndcg_score(sorted_relevance_labels.values(), sorted_relevance_labels.values())
+    ndcg = ndcg_score(np.array([list(sorted_relevance_labels.values())]), np.array([list(complete_ranking.values())]))
 
     return ndcg
-
-def average_ndcg(lst_ndcg):
-    ''' Calculates the average over a list of ndcg scores'''
-    return sum(lst_ndcg) / len(lst_ndcg)
 
 def normalized_shift(new_rank, old_rank, total_n_docs):
     """
@@ -65,7 +58,7 @@ def normalized_shift(new_rank, old_rank, total_n_docs):
     avg_increase = increase / total_n_docs
     return avg_increase
 
-def succes_rate(dct_irr_docs, complete_new_ranking, top_n=100):
+def success_rate(dct_irr_docs, complete_new_ranking, top_n=100):
     """
     Function that calculates the succes rate of a new ranking list
 
@@ -87,7 +80,3 @@ def succes_rate(dct_irr_docs, complete_new_ranking, top_n=100):
     # succes rate is percentage of irrelevant docs that is re-ranked in top100
     succes_rate = count_top / len(dct_irr_docs)
     return succes_rate
-
-def average_succes_rate(lst_succes_rate):
-    ''' Calculates the average over a list of succes rates'''
-    return sum(lst_succes_rate) / len(lst_succes_rate)
