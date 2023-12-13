@@ -11,7 +11,7 @@ from models.bert_models import BertForLM, BertForConcatNextSentencePrediction
 from transformers import BertTokenizer
 from methods.semantic_collisions import gen_aggressive_collision
 # ?
-from methods.perturb_doc import perturb_doc
+# from methods.perturb_doc import perturb_doc
 from evaluation import evaluation_ndcg, average_ndcg, succes_rate, average_succes_rate, normalized_shift
 
 def update_ranking(scores, old_score, new_score):
@@ -103,7 +103,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
 
     # ?
     test_dct = islice(dataset.qid_qtxt, 3)
-    temp_results = []
+    shift_results = []
     for q_id in tqdm.tqdm(test_dct, desc='Going through queries'):
         complete_old_ranking, targeted_docs, query_scores, _ = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
 
@@ -130,8 +130,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
                     f'old score={old_score:.2f}, new score={new_score:.2f}, old rank={old_rank}, new rank={new_rank}')
 
             shift = normalized_shift(new_rank, old_rank, len(targeted_docs))
-            # store shift result
-            temp_results.append(f"{q_id}\t{did}\t{shift}")
+            shift_results.append(shift)
 
             if verbosity:
                 print('Document with ID',did,'normalized shift:', shift)
@@ -161,16 +160,13 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
 
     # Write everything to 'results.txt'
     with open(file_path, 'w') as file:
-        # Write success rate on the first line
+        # Write success rate on the first line, and the shift on second
         file.write(f"{avg_succes_rate}\n")
-        # Write the stored query, document, and shift values
-        for result in temp_results:
-            file.write(result + "\n")
+        avg_shift = sum(shift_results) / len(shift_results)
+        file.write(f"{avg_shift}\n")
 
-    if verbosity:
-        print(f'The succes rate is {avg_succes_rate}')
-
-    print('Done!')
+    print(f'Average success rate:" {avg_succes_rate}')
+    print(f'Average normalized shift:" {avg_shift}')
 
 def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_iter):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -201,9 +197,11 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
     succes_rates = []
 
     # for storing results in the text file
-    temp_results = []
-    for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
-    # for q_id in dataset.qid_qtxt.keys():
+    shift_results = []
+    # ?
+    test_dct = islice(dataset.qid_qtxt, 2)
+    # for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
+    for q_id in test_dct:
         complete_old_ranking, targeted_docs, query_scores, topk_sentences = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
 
         # dict of new_scores
@@ -241,8 +239,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
                     f'old score={old_score:.2f}, new score={new_score:.2f}, old rank={old_rank}, new rank={new_rank}')
                 
             shift = normalized_shift(new_rank, old_rank, len(targeted_docs))
-            # store shift result
-            temp_results.append(f"{q_id}\t{did}\t{shift}")
+            shift_results.append(shift)
 
             if verbosity:
                 print('Document with ID',did,'normalized shift:', shift)
@@ -273,16 +270,13 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
 
     # Write everything to 'results.txt'
     with open(file_path, 'w') as file:
-        # Write success rate on the first line
+        # Write success rate on the first line, and the shift on second
         file.write(f"{avg_succes_rate}\n")
-        # Write the stored query, document, and shift values
-        for result in temp_results:
-            file.write(result + "\n")
+        avg_shift = sum(shift_results) / len(shift_results)
+        file.write(f"{avg_shift}\n")
 
-    if verbosity:
-        print(f'The succes rate is {avg_succes_rate}')
-
-    print('Done!')
+    print(f'Average success rate: {avg_succes_rate}')
+    print(f'Average normalized shift: {avg_shift}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
