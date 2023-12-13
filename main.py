@@ -101,8 +101,6 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
     ranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
 
     # for storing evaluation values
-    ndcg_scores_new = []
-    ndcg_scores_old = []
 
     total_shift = 0
     total_succ_rate = 0
@@ -205,10 +203,6 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
     lm_model.eval()
 
     ranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
-
-    # for storing evaluation values
-    ndcg_scores_new = []
-    ndcg_scores_old = []
 
     total_shift = 0
     total_succ_rate = 0
