@@ -5,7 +5,7 @@ This README contains all information necessary to reproduce the work as proposed
 
 ## Directory structure
 
-This project uses the Top1000 Dev subset of the MS MARCO Dataset for Passage Retrieval (top1000.dev). This dataset can be downloaded from the official MS MARCO github: [github:ms marco](https://microsoft.github.io/msmarco/). The relevance labels (qrels.dev.tsv) can also be downloaded from this source. Additionally, the language model and collision model used can be downloaded from here: TODO
+This project uses the Top1000 Dev subset of the MS MARCO Dataset for Passage Retrieval (top1000.dev). This dataset can be downloaded from the official MS MARCO github: [github:ms marco](https://microsoft.github.io/msmarco/). The relevance labels (qrels.dev.tsv) can also be downloaded from this source. Additionally, the language model and collision model, as used and provided by Song et al. (2020) [[2]](#2), used can be downloaded from here: https://drive.google.com/drive/folders/1XRwWZLgs1Pm_mbl16wyXoXo9q-Sbb4O6?usp=sharing. These models can also be downloaded from the original Semantic Collisions git page: https://github.com/csong27/collision-bert.
 
 ```tree
 ├── methods/
@@ -45,5 +45,6 @@ To reproduce the experiments, please run the `main.py` file. After selecting the
 - `semantic_collision.py`: generates collision based on the semantic collision adversarial attack
 
 ## References
-<a id="1">[1]</a> 
-LINK TO OUR PAPER
+<a id="1">[1]our paper</a> 
+
+<a id="2">[2] Song et al. (2020). Adversarial Semantic Collisions.</a> 
