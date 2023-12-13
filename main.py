@@ -111,9 +111,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
     it = 0
     it2 = 0
     it3 = 0
-    # ?
-    test_dct = islice(dataset.qid_qtxt, 3)
-    for q_id in tqdm.tqdm(test_dct, desc='Going through queries'):
+    for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
         complete_old_ranking, targeted_docs, query_scores, _ = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
 
         # dict of new_scores
@@ -156,7 +154,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
         succ_rate = success_rate(targeted_docs, complete_new_ranking, top_n=100)
         total_succ_rate += succ_rate
         it2 += 1 
-        
+
     # Define the directory and file path
     res_directory = './results'
     file_path = f'{res_directory}/results.txt'
@@ -219,10 +217,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
     it = 0
     it2 = 0
     it3 = 0
-    # ?
-    test_dct = islice(dataset.qid_qtxt, 2)
-    # for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
-    for q_id in test_dct:
+    for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
         complete_old_ranking, targeted_docs, query_scores, topk_sentences = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
         # dict of new_scores
         dct_new_scores = {}
