@@ -10,6 +10,7 @@ dataset_path = os.path.join('data', 'top1000.dev')
 dataset = MSMARCO_REL(dataset_path)
 
 
+
 def get_rel_labels(q_id):
     """
     Function that obtains the relevance labels given a query
@@ -32,6 +33,7 @@ def get_rel_labels(q_id):
             rel_labels[d_id] = 0
     return rel_labels
 
+
 def evaluation_ndcg(complete_ranking, query_id):
     """
     Function that calculates the ndcg of a ranking
@@ -47,6 +49,7 @@ def evaluation_ndcg(complete_ranking, query_id):
 
     # sort the relevance labels such that it has same ordering as complete ranking
     sorted_relevance_labels = dict(sorted(relevance_labels.items(), key=lambda x: list(complete_ranking.keys()).index(x[0])))
+
 
     assert sorted_relevance_labels.keys() == complete_ranking.keys(), "The doc_ids of ranking and relevance labels do not match."
 

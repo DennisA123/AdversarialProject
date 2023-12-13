@@ -3,6 +3,7 @@ This reposititory contain the work of Dennis Agafonov and Jelke Matthijsse For t
 
 This README contains all information necessary to reproduce the work as proposed in the "Formalizing a Thread Model for Adversarial Attacks in Information Retrieval" paper [[1]](#1). First and overview of the file structure is given. Then, instructions on the requirement are provided. And lastly, this README provides detailed instructions on how to run the experiments from the paper. 
 
+
 ## Directory structure
 
 This project uses the Top1000 Dev subset of the MS MARCO Dataset for Passage Retrieval. This dataset can be downloaded from the official MS MARCO github: [github:ms marco](https://microsoft.github.io/msmarco/). Make sure the data is available in the directory where the rest of the repository is stored.
@@ -47,3 +48,4 @@ main.py [-h] [--use-cuda] [--perturbation-method METHOD] [--no-irrelevant-docs I
 ## References
 <a id="1">[1]</a> 
 LINK TO OUR PAPER
+

@@ -14,6 +14,7 @@ from methods.semantic_collisions import gen_aggressive_collision
 from methods.perturb_doc import perturb_doc
 from evaluation import evaluation_ndcg, average_ndcg, succes_rate, average_succes_rate, normalized_shift
 
+
 def update_ranking(scores, old_score, new_score):
     """
     Update the ranking of a document after its score has changed.
@@ -96,6 +97,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
 
     ranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
 
+
     # for storing evaluation values
     ndcg_scores_new = []
     ndcg_scores_old = []
@@ -118,12 +120,14 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
 
             # calculate its new score with the collision
             new_score = ranker.predict((dataset.qid_qtxt[q_id], perturb_doc(dataset.did_dtxt[did], dataset.qid_qtxt[q_id], nr_words, perturbation_type, choice_of_words)))
+
             # old rank and score from our model
             old_rank, old_score = targeted_docs[did]
             new_rank = update_ranking(query_scores, old_score, new_score) 
 
             # update dict of new_scores
             dct_new_scores[did] = new_score 
+
             
             if verbosity:
                 print(f'Query id={q_id}, Doc id={did}, '
@@ -146,6 +150,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
         succ_rate = succes_rate(targeted_docs, complete_new_ranking, top_n=100)
         succes_rates.append(succ_rate)   
     
+
     # average_ndcg_new = average_ndcg(ndcg_scores_new)
     # average_ndcg_old = average_ndcg(ndcg_scores_old)
     avg_succes_rate = average_succes_rate(succes_rates)
@@ -184,6 +189,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
         print('DEVICE:', device)
     dataset_path = os.path.join('data', 'top1000.dev')
     dataset = MSMARCO_REL(dataset_path)
+
     model.eval()
     for param in model.parameters():
         param.requires_grad = False
@@ -194,6 +200,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
     lm_model.eval()
 
     ranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
+
 
     # for storing evaluation values
     ndcg_scores_new = []
@@ -229,6 +236,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
         for did in targeted_docs.keys():
             # calculate its new score with the collision
             new_score = ranker.predict((dataset.qid_qtxt[q_id], dataset.did_dtxt[did] + ' ' + collision))
+
             # old rank and score from our model
             old_rank, old_score = targeted_docs[did]
             new_rank = update_ranking(query_scores, old_score, new_score)
@@ -284,6 +292,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
 
     print('Done!')
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # command line args for specifying the situation
@@ -302,3 +311,4 @@ if __name__ == '__main__':
         main_collision(args.nr_irrelevant_docs, args.nr_top_docs, args.nr_words, args.verbosity, args.max_iter)
     elif args.perturbation_method == 'encoding_attack':
         main_encoding(args.nr_irrelevant_docs, args.nr_top_docs, args.nr_words, args.perturbation_type, args.choice_of_words, args.verbosity)
+
