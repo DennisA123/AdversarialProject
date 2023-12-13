@@ -1,8 +1,7 @@
 # Formalizing a Thread Model for Adversarial Attacks in Information Retrieval
 This reposititory contain the work of Dennis Agafonov and Jelke Matthijsse For the course Information Retrieval 2, given at the University of Amsterdam (2023). 
 
-This README contains all information necessary to reproduce the work as proposed in the "Formalizing a Thread Model for Adversarial Attacks in Information Retrieval" paper. TODO --> Add link maybe?
-First and overview of the file structure is given. Then, instructions on the requirement are provided. And lastly, this README provides detailed instructions on how to run the experiments from the paper. 
+This README contains all information necessary to reproduce the work as proposed in the "Formalizing a Thread Model for Adversarial Attacks in Information Retrieval" paper [[1]](#1). First and overview of the file structure is given. Then, instructions on the requirement are provided. And lastly, this README provides detailed instructions on how to run the experiments from the paper. 
 
 ## Directory structure
 
@@ -44,3 +43,7 @@ main.py [-h] [--use-cuda] [--perturbation-method METHOD] [--no-irrelevant-docs I
 - `evaluation.py`: evaluating the new ranking TODO!
 - `perturb_doc.py`: perturbs documents based on the adversarial encoding attack
 - `semantic_collision.py`: generates collision based on the semantic collision adversarial attack
+
+## References
+<a id="1">[1]</a> 
+LINK TO OUR PAPER
