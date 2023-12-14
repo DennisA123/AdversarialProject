@@ -265,6 +265,9 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
         succ_rate = success_rate(targeted_docs, complete_new_ranking, top_n=100)
         total_succ_rate += succ_rate
         it2 += 1
+
+        if it3 == 1000:
+            break
     
     # Define the directory and file path
     res_directory = './results'
@@ -302,7 +305,7 @@ if __name__ == '__main__':
     parser.add_argument('--perturbation_type', type=str, default='del', choices=['base', 'zwsp', 'zwnj', 'zwj', 'rlo', 'bksp', 'del', 'homo', 'homo2'], help='What kind of perturbation is done')
     parser.add_argument('--choice_of_words', type=str, default='important', choices=['random', 'important', 'unimportant'], help='How many top docs are considered relevant')
     parser.add_argument('--verbosity', action='store_true', help='Print additional information during process')
-    parser.add_argument('--max_iter', type=int, default=6, help='How many iterations to find best collision')
+    parser.add_argument('--max_iter', type=int, default=10, help='How many iterations to find best collision')
 
     args = parser.parse_args()
 
