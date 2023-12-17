@@ -11,8 +11,7 @@ from dataloader import MSMARCO_REL, RELEVANCE
 from models.bert_models import BertForLM, BertForConcatNextSentencePrediction
 from transformers import BertTokenizer
 from methods.semantic_collisions import gen_aggressive_collision
-# ?
-# from methods.perturb_doc import perturb_doc
+from methods.perturb_doc import perturb_doc
 from evaluation import evaluation_ndcg, success_rate, normalized_shift
 
 def update_ranking(scores, old_score, new_score):
@@ -134,7 +133,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
                 print(f'Query id={q_id}, Doc id={did}, '
                     f'old score={old_score:.2f}, new score={new_score:.2f}, old rank={old_rank}, new rank={new_rank}')
 
-            shift = normalized_shift(new_rank, old_rank, len(targeted_docs))
+            shift = normalized_shift(new_rank, old_rank, len(complete_old_ranking))
             total_shift += shift
             it += 1
 
@@ -250,7 +249,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
                 print(f'Query id={q_id}, Doc id={did}, '
                     f'old score={old_score:.2f}, new score={new_score:.2f}, old rank={old_rank}, new rank={new_rank}')
                 
-            shift = normalized_shift(new_rank, old_rank, len(targeted_docs))
+            shift = normalized_shift(new_rank, old_rank, len(complete_old_ranking))
             total_shift += shift
             it += 1
 
