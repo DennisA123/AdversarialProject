@@ -36,7 +36,7 @@ pip install -r requirements.txt
 ```
 
 ## Experiments
-To reproduce the experiments, please run the `main.py` file. After selecting the desired perturbation method (and any other arguments) in the argparser, this method will perturb the most irrelevant documents from an original ranking (as provided by the CrossEncoder model) to produce a new ranking. Resulting metrics will be stored in results/results.txt, in the following order: Average success rate, average shift, average nDCG before the attack, average nDCG after the attack, difference in average nCDG.
+To reproduce the experiments, please run the `main.py` file. After selecting the desired perturbation method (and any other arguments) in the argparser, this method will perturb the most irrelevant documents from an original ranking (as provided by the CrossEncoder model) to produce a new ranking. Resulting metrics will be stored in results/results-{perturbation size}.txt, in the following order: Average success rate, average shift, average nDCG before the attack, average nDCG after the attack, difference in average nCDG.
 
 ## References
 <a id="1">[1]our paper</a> 
