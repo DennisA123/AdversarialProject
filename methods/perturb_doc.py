@@ -1,11 +1,4 @@
-#!/usr/bin/env python3
-#
-# perturbations.py
-# Nicholas Boucher - December 2022
-# Implements Unicode perturbations.
-#
 from homoglyphs import Homoglyphs
-# ?
 from splade.models.transformer_rep import Splade
 from transformers import AutoTokenizer
 import torch

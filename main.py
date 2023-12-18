@@ -4,10 +4,10 @@ import tqdm
 import argparse
 import copy
 from sentence_transformers import CrossEncoder
+from transformers import BertTokenizer
 
 from dataloader import MSMARCO_REL, RELEVANCE
 from models.bert_models import BertForLM, BertForConcatNextSentencePrediction
-from transformers import BertTokenizer
 from methods.semantic_collisions import gen_aggressive_collision
 from methods.perturb_doc import perturb_doc
 from evaluation import evaluation_ndcg, normalized_shift

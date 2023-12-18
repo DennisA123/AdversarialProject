@@ -1,7 +1,8 @@
 import torch
 from transformers import BertForMaskedLM, BertModel, BertForNextSentencePrediction
-from models.bert_layers import BertEncoderPast
 from transformers.models.bert.modeling_bert import BertEmbeddings
+
+from models.bert_layers import BertEncoderPast
 
 class BertAutoRegressiveModel(BertModel):
     def __init__(self, config):
