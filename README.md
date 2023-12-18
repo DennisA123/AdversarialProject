@@ -37,7 +37,18 @@ pip install -r requirements.txt
 ```
 
 ## Experiments
-To reproduce the experiments, please run the `main.py` file. After selecting the desired perturbation method (and any other arguments) in the argparser, this method will perturb the most irrelevant documents from an original ranking (as provided by the CrossEncoder model) to produce a new ranking. Resulting metrics will be stored in results/results-{perturbation size}.txt, in the following order: average normalized rank shift, average nDCG before the attack, average nDCG after the attack, difference in average nCDG.
+To reproduce the experiments, please run the `main.py` file. After selecting the desired perturbation method (and any other arguments) in the argparser, this method will perturb the most irrelevant documents from an original ranking (as provided by the CrossEncoder model) to produce a new ranking.
+
+Argparse arguments:
+- `perturbation_method`: use Aggressive Semantic Collisions (ASC) or Encoding Attack (EA)
+- `nr_irrelevant_docs`: how many bottom documents of R should be perturbed
+- `nr_words`: length of the perturbation
+- `perturbation_type` [for EA only]: what kind of perturbation implementation method is used
+- `choice_of_words` [for EA only]: how the tokens to be perturbed are selected
+- `verbosity`: if parsed, will print additional information during the adversarial attack process
+- `max_iter` [for ASC only]: how many iterations should be done to find the best collision
+
+ Resulting metric values will be stored in results/results-{perturbation size}.txt, in the following order: average normalized rank shift, average nDCG before the attack, average nDCG after the attack, difference in average nCDG.
 
 ## References
 

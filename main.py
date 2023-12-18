@@ -86,7 +86,7 @@ def give_scores_and_ranks(model, query_id, dataset, B, K):
     # doc_id: (rank,score), [descending scores], [text, text, ...]
     return complete_ranking, bottom_b_dict, query_scores, sorted_doctxt_topK
 
-def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, choice_of_words, verbosity):
+def main_encoding(nr_irrelevant_docs, nr_words, perturbation_type, choice_of_words, verbosity):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if verbosity:
         print('DEVICE:', device)
@@ -105,7 +105,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
     it = 0
     it3 = 0
     for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
-        complete_old_ranking, targeted_docs, query_scores, _ = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
+        complete_old_ranking, targeted_docs, query_scores, _ = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, 10)
 
         # dict of new_scores
         dct_new_scores = {}
@@ -169,7 +169,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
     print(f'Average nDCG after the attack: {avg_ndcg_new}')
     print(f'Difference in nDCG: {ndcg_diff}')
 
-def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_iter):
+def main_collision(nr_irrelevant_docs, nr_words, verbosity, max_iter):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
     collision_model_path = os.path.join('models', 'msmarco_mb')
@@ -200,12 +200,10 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
     it = 0
     it3 = 0
     for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
-        complete_old_ranking, targeted_docs, query_scores, topk_sentences = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
-        # print([len(a.split()) for a in topk_sentences])
+        complete_old_ranking, targeted_docs, query_scores, topk_sentences = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, 10)
         # dict of new_scores
         dct_new_scores = {}
 
-        # print('Query scores', query_scores)
         best_sent = ' '.join(topk_sentences[:]).rstrip()
 
         if verbosity:
@@ -250,7 +248,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
         total_ndcg_new += ndcg_new
         it3 += 1
 
-        if it3 == 200:
+        if it3 == 1000:
             break
     
     # Define the directory and file path
@@ -281,7 +279,6 @@ if __name__ == '__main__':
     # command line args for specifying the situation
     parser.add_argument('--perturbation_method', type=str, default='semantic_collision', choices=['semantic_collision', 'encoding_attack'], help='Which methods is used for document perturbation')
     parser.add_argument('--nr_irrelevant_docs', type=int, default=10, help='How many irrelevant docs will be perturbed and reranked')
-    parser.add_argument('--nr_top-docs', type=int, default=10, help='How many top docs are considered relevant')
     parser.add_argument('--nr_words', type=int, default=3, help='How many words are perturbed')
     parser.add_argument('--perturbation_type', type=str, default='del', choices=['base', 'zwsp', 'zwnj', 'zwj', 'rlo', 'bksp', 'del', 'homo', 'homo2'], help='What kind of perturbation is done')
     parser.add_argument('--choice_of_words', type=str, default='important', choices=['random', 'important', 'unimportant'], help='How many top docs are considered relevant')
@@ -291,6 +288,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.perturbation_method == 'semantic_collision':
-        main_collision(args.nr_irrelevant_docs, args.nr_top_docs, args.nr_words, args.verbosity, args.max_iter)
+        main_collision(args.nr_irrelevant_docs, args.nr_words, args.verbosity, args.max_iter)
     elif args.perturbation_method == 'encoding_attack':
-        main_encoding(args.nr_irrelevant_docs, args.nr_top_docs, args.nr_words, args.perturbation_type, args.choice_of_words, args.verbosity)
+        main_encoding(args.nr_irrelevant_docs, args.nr_words, args.perturbation_type, args.choice_of_words, args.verbosity)
