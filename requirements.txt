@@ -5,4 +5,7 @@ nltk
 homoglyphs
 transformers
 git+https://github.com/naver/splade.git
-pattern
+torch
+argparse
+scikit-learn
+pattern3
