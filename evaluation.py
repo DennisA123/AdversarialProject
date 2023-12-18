@@ -57,26 +57,3 @@ def normalized_shift(new_rank, old_rank, total_n_docs):
     increase = old_rank - new_rank
     avg_increase = increase / total_n_docs
     return avg_increase
-
-def success_rate(dct_irr_docs, complete_new_ranking, top_n=100):
-    """
-    Function that calculates the succes rate of a new ranking list
-
-    :param dct_irr_docs: dict of doc_ids of irrelevant docs (which are the keys) that are perturbed
-    :param complete_new_ranking: sorted dict with new ranking
-
-    :return: the succes rate of irrelevant docs that are pushed up into top  n
-    """
-    # obtain sorted list of doc_ids 
-    ranking_list = [item[0] for item in complete_new_ranking.items()]
-
-    # count how many of original irr_docs are in top_n of new 
-    count_top = 0
-    for doc_id in dct_irr_docs.keys():
-        index = ranking_list.index(doc_id)
-        if index <= top_n:
-            count_top += 1
-
-    # succes rate is percentage of irrelevant docs that is re-ranked in top100
-    succes_rate = count_top / len(dct_irr_docs)
-    return succes_rate

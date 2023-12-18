@@ -11,8 +11,8 @@ from dataloader import MSMARCO_REL, RELEVANCE
 from models.bert_models import BertForLM, BertForConcatNextSentencePrediction
 from transformers import BertTokenizer
 from methods.semantic_collisions import gen_aggressive_collision
-from methods.perturb_doc import perturb_doc
-from evaluation import evaluation_ndcg, success_rate, normalized_shift
+# from methods.perturb_doc import perturb_doc
+from evaluation import evaluation_ndcg, normalized_shift
 
 def update_ranking(scores, old_score, new_score):
     """
@@ -102,11 +102,9 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
     # for storing evaluation values
 
     total_shift = 0
-    total_succ_rate = 0
     total_ndcg_new = 0
     total_ndcg_old = 0
     it = 0
-    it2 = 0
     it3 = 0
     for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
         complete_old_ranking, targeted_docs, query_scores, _ = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
@@ -147,11 +145,6 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
         total_ndcg_new += ndcg_new
         it3 += 1  
 
-        # evaluation: succes_rate
-        succ_rate = success_rate(targeted_docs, complete_new_ranking, top_n=100)
-        total_succ_rate += succ_rate
-        it2 += 1 
-
         if it3 == 1000:
             break
 
@@ -163,9 +156,7 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
 
     # Write everything to 'results.txt'
     with open(file_path, 'w') as file:
-        # Write success rate on the first line, the shift on second, old NCDG on third, new NCDG on fourth, and difference on fifth
-        avg_succes_rate = total_succ_rate / it2 if it2 else 0
-        file.write(f"{avg_succes_rate}\n")
+        # Write average shift on first line, the old nDCG on the second, the new nDCG on third, and the difference in nDCG on fourth
         avg_shift = total_shift / it if it else 0
         file.write(f"{avg_shift}\n")
         avg_ndcg_old = total_ndcg_old / it3 if it3 else 0
@@ -175,7 +166,6 @@ def main_encoding(nr_irrelevant_docs, nr_top_docs, nr_words, perturbation_type, 
         ndcg_diff = avg_ndcg_new - avg_ndcg_old
         file.write(f"{ndcg_diff}\n")
 
-    print(f'Average success rate: {avg_succes_rate}')
     print(f'Average normalized shift: {avg_shift}')
     print(f'Average nDCG before the attack: {avg_ndcg_old}')
     print(f'Average nDCG after the attack: {avg_ndcg_new}')
@@ -207,14 +197,13 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
     ranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2', max_length=512)
 
     total_shift = 0
-    total_succ_rate = 0
     total_ndcg_new = 0
     total_ndcg_old = 0
     it = 0
-    it2 = 0
     it3 = 0
     for q_id in tqdm.tqdm(dataset.qid_qtxt.keys(), desc='Going through queries'):
         complete_old_ranking, targeted_docs, query_scores, topk_sentences = give_scores_and_ranks(ranker, q_id, dataset, nr_irrelevant_docs, nr_top_docs)
+        # print([len(a.split()) for a in topk_sentences])
         # dict of new_scores
         dct_new_scores = {}
 
@@ -263,12 +252,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
         total_ndcg_new += ndcg_new
         it3 += 1
 
-        # evaluation: succes_rate
-        succ_rate = success_rate(targeted_docs, complete_new_ranking, top_n=100)
-        total_succ_rate += succ_rate
-        it2 += 1
-
-        if it3 == 1000:
+        if it3 == 200:
             break
     
     # Define the directory and file path
@@ -279,9 +263,7 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
  
     # Write everything to 'results.txt'
     with open(file_path, 'w') as file:
-        # Write success rate on the first line, the shift on second, old NCDG on third, new NCDG on fourth, and difference on fifth
-        avg_succes_rate = total_succ_rate / it2 if it2 else 0
-        file.write(f"{avg_succes_rate}\n")
+        # Write average shift on first line, the old nDCG on the second, the new nDCG on third, and the difference in nDCG on fourth
         avg_shift = total_shift / it if it else 0
         file.write(f"{avg_shift}\n")
         avg_ndcg_old = total_ndcg_old / it3 if it3 else 0
@@ -291,7 +273,6 @@ def main_collision(nr_irrelevant_docs, nr_top_docs, nr_words, verbosity, max_ite
         ndcg_diff = avg_ndcg_new - avg_ndcg_old
         file.write(f"{ndcg_diff}\n")
 
-    print(f'Average success rate: {avg_succes_rate}')
     print(f'Average normalized shift: {avg_shift}')
     print(f'Average nDCG before the attack: {avg_ndcg_old}')
     print(f'Average nDCG after the attack: {avg_ndcg_new}')
